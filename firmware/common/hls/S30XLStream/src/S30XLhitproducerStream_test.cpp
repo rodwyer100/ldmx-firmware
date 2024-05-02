@@ -35,6 +35,8 @@ int main(){
 	bool readin = true;
 	bool start = true;
 	int counter1 = 0;
+	ap_uint<70> globalCount = 0;
+	bool amIOn = false;
 	while(TestVec){
 		if(start){
 			for(int i = 0; i < NCHAN; i++){
@@ -54,16 +56,38 @@ int main(){
 		if(readin){
 			//THIS IS THE INPUT ADC TDC BAR INFO
 			if(s=="b"){
+				globalCount+=1;
 				readin=false;
 				//I HAVE READIN ALL THE CHANNELS, TIME TO PUT IT INTO FIRMWARE
-				std::cout<<"I MADE IT TO THE FIRMWARE"<<std::endl;
 				ap_uint<14> FIFO2[NHITS];
 				for(int k=0;k<NCHAN;k++){
 					FIFO2[k]=FIFO[k][1];
 					//std::cout<<FIFO2[k]<<std::endl;
 				}
-				hitproducerStream_hw(FIFO2,outHit,outflag);
-				std::cout<<"I MADE IT AFTER THE FIRMWARE"<<std::endl;
+				ap_uint<1> dataReady_out[1]={0.0};
+				ap_uint<70> timestamp_out[1]={0.0};
+				ap_uint<70> timestamp_in[1]={globalCount};
+				ap_uint<1> dataReady_in[1]={1};
+				if(globalCount%2==0){
+					std::cout<<"even"<<std::endl;
+					dataReady_in[0]=0;
+				}else{
+					std::cout<<"odd"<<std::endl;
+					dataReady_in[0]=1;
+				}
+				hitproducerStream_hw(timestamp_in,timestamp_out,dataReady_in,dataReady_out,FIFO2,outflag,outHit);
+				std::cout<<timestamp_out[0]<<std::endl;
+				if(!(timestamp_out[0]==globalCount)){
+					std::cout<<globalCount<<std::endl;
+					return -1;
+				}
+				if(!(dataReady_in[0]==dataReady_out[0])){
+					std::cout<<dataReady_in[0]<<std::endl;
+					return -1;
+				}
+				if(dataReady_in[0]==1){
+					amIOn = true;
+				}
 				continue;
 			}
 			std::cout<<s<<std::endl;
@@ -102,8 +126,11 @@ int main(){
 				}
 				if(!(counter1-counter2==0)){
 					std::cout<<"LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOK"<<std::endl;
-					counterErr+=1;
+					if(amIOn){
+						counterErr+=1;
+					}
 				}
+				amIOn=false;
 				counter1=0;
 				continue;
 			}
@@ -117,3 +144,18 @@ int main(){
 	std::cout<<counterErr<<std::endl;
 	return 1*(counterErr>110);
 }
+
+//InPutBus *in = new InPutBus;
+//OutPutBus *out = new OutPutBus;
+//in->dataReady_in=1;
+//in->timestamp_in=0;
+//std::copy(std::begin(FIFO2), std::end(FIFO2), std::begin(in->FIFO));
+//std::copy(std::begin(outHit), std::end(outHit), std::begin(out.amplitude));
+//std::copy(std::begin(outflag), std::end(outflag), std::begin(out.onflag));
+//for(int i =0;i<std::end(out->amplitude)-std::begin(out->amplitude);i++){
+//	std::cout<<out->amplitude[i]<<std::endl;
+//}
+//std::copy(std::begin(in.FIFO), std::end(in.FIFO), std::begin(FIFO2));
+//std::copy(std::begin(out->amplitude), std::end(out->amplitude), std::begin(outHit));
+//std::copy(std::begin(out->onflag), std::end(out->onflag), std::begin(outflag));
+//std::cout<<"I MADE IT AFTER THE FIRMWARE"<<std::endl;
